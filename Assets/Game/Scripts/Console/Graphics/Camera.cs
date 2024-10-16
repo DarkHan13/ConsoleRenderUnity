@@ -10,8 +10,18 @@ namespace Game.Scripts.Console.Graphics
 
 
         public Vector3 Forward => RayDir(Vector3.forward).normalized;
-        public Vector3 Right => RayDir(Forward, 90, 0);
-        
+
+        public Vector3 Right
+        {
+            get
+            {
+                var v = Forward;
+                v.y = 0;
+                v = Quaternion.AngleAxis(90, Vector3.up) * v;
+                return v.normalized;
+            }
+        }
+
 
         // public void UpdateRotation()
         // {

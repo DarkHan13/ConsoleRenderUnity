@@ -19,6 +19,12 @@ namespace Game.Scripts.Console.Graphics
         public int Height { get; private set; }
         public int GradientSize { get; private set; }
 
+                
+        public Vector3 LightPos = new Vector3(0, 5, 0);
+        public Camera Camera = new Camera();
+        public int ReflectLimit = 1;
+        public List<Shape> Shapes = new ();
+
         private char[] _screen;
         
         public Graphics(float charAspect, int width, int height)
@@ -30,6 +36,16 @@ namespace Game.Scripts.Console.Graphics
             GradientSize = gradient.Length;
 
             _screen = new char[width * height];
+            
+            Shapes.Add(new Sphere(new Vector3(0, 0, 5), 1f));
+            for (int x = -5; x <= 5; x++)
+            {
+                for (int z = -5; z <= 5; z++)
+                {
+                    Shapes.Add(new AABB(new Vector3(x, 1, z), 0.8f));
+                }
+            }
+
         }
 
         public void SetPixel(int x, int y, char pixel)
@@ -65,26 +81,10 @@ namespace Game.Scripts.Console.Graphics
                 }
             }
         }
-        
-        public Vector3 LightPos = new Vector3(0, 5, 0);
-        public Camera Camera = new Camera();
+
 
         public void Update()
         {
-            List<Shape> shapes = new List<Shape>() 
-            {
-                // new AABB(new Vector3(0, 0, 0), 1), 
-                new Sphere(new Vector3(0, 0, 5), 1f),
-            };
-            for (int x = -5; x <= 5; x++)
-            {
-                for (int z = -5; z <= 5; z++)
-                {
-                    shapes.Add(new AABB(new Vector3(x, 1, z), 0.8f));
-                }
-            }
-            
-
             for (int i = 0; i < Width; i++)
             {
                 for (int j = 0; j < Height; j++)
@@ -96,32 +96,55 @@ namespace Game.Scripts.Console.Graphics
                     Ray ray = new Ray(Camera.position, rayDir);
                     char pixel = ' ';
                     HitInfo bestHit = new HitInfo();
-                    float minDist = Single.PositiveInfinity;
-                    foreach (var shape in shapes)
+                    float brightness = 0;
+                    for (int k = 0; k < ReflectLimit; k++)
                     {
-                        if (shape.Intersect(ray, out var hit))
+                        bestHit.IsHit = false;
+                        
+                        float minDist = Single.PositiveInfinity;
+                        foreach (var shape in Shapes)
                         {
-                            var dist = (ray.Origin - hit.HitPoint).sqrMagnitude;
-                            if (dist < minDist)
+                            if (shape.Intersect(ray, out var hit))
                             {
-                                minDist = dist;
-                                bestHit = hit;
+                                var dist = (ray.Origin - hit.HitPoint).sqrMagnitude;
+                                if (dist < minDist)
+                                {
+                                    minDist = dist;
+                                    bestHit = hit;
+                                }
+
                             }
 
                         }
 
+                        if (bestHit.IsHit)
+                        {
+                            brightness += MathF.Max(0,
+                                Vector3.Dot(bestHit.Normal, (bestHit.HitPoint - LightPos).normalized)) * (k == 0 ? 1 : 0.5f);
+                            ray.Direction = Vector3.Reflect(ray.Direction, bestHit.Normal);
+                            ray.Origin = bestHit.HitPoint + ray.Direction * 0.01f;
+                        } else break;
                     }
 
-                    if (bestHit.IsHit)
-                    {
-                        float brightness = MathF.Max(0,
-                            Vector3.Dot(bestHit.Normal, (bestHit.HitPoint - LightPos).normalized));
-                        pixel = gradient[(int)(brightness * (GradientSize - 1))];
-                    }
-
+                    brightness = Mathf.Clamp01((brightness));
+                    pixel = gradient[(int)(brightness * (GradientSize - 1))];
                     _screen[i + j * Width] = pixel;
                 }
-            }        
+            }
+
+            var fpsString = (1f / Time.deltaTime).ToString("00");
+            for (var i = 0; i < fpsString.Length; i++)
+            {
+                _screen[i] = fpsString[i];
+            }
+
+            var reflectionLimitMessage = $"Reflects: {ReflectLimit - 1}";
+            var length = reflectionLimitMessage.Length;
+            var startIndex = Width - length;
+            for (int i = startIndex; i < Width; i++)
+            {
+                _screen[i] = reflectionLimitMessage[i - startIndex];
+            }
         }
     }
 }

@@ -77,8 +77,10 @@ namespace Game.Console
             var forward = _consoleGraphics.Camera.Forward;
             var right = _consoleGraphics.Camera.Right;
             var movement = forward * v + right * h;
-            movement.y = 0;
             _consoleGraphics.Camera.position += (moveSpeed * Time.deltaTime) * movement;
+
+            if (Input.GetKeyDown(KeyCode.LeftShift)) _consoleGraphics.ReflectLimit--;
+            if (Input.GetKeyDown(KeyCode.Tab)) _consoleGraphics.ReflectLimit++;
         }
     }
 
