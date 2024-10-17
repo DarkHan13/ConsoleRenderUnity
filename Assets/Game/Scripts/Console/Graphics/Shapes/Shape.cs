@@ -1,10 +1,11 @@
 ﻿using Game.Scripts.Console.Graphics.Math;
+using Ray = Game.Scripts.Console.Graphics.Math.Ray;
 
 namespace Game.Scripts.Console.Graphics.Shapes
 {
-    public interface Shape
+    public abstract class Shape
     {
-        
-        public bool Intersect(Ray ray, out HitInfo hit);
+        public ShapeMaterial Material;
+        public abstract bool Intersect(Ray ray, out HitInfo hit);
     }
 }

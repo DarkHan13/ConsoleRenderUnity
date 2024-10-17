@@ -84,7 +84,7 @@ namespace Game.Console
             if (Input.GetKeyDown(KeyCode.LeftShift)) _consoleGraphics.ReflectLimit--;
             if (Input.GetKeyDown(KeyCode.Tab)) _consoleGraphics.ReflectLimit++;
             
-            if (Input.GetMouseButtonDown(0)) _consoleGraphics.RayDestroy();
+            // if (Input.GetMouseButtonDown(0)) _consoleGraphics.RayDestroy();
         }
     }
 

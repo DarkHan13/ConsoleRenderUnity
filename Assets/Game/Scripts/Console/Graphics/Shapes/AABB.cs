@@ -36,7 +36,7 @@ namespace Game.Scripts.Console.Graphics.Shapes
 
         public void Move(Vector3 moveVector) => SetCenter(Center + moveVector);
         
-        public bool Intersect(Ray ray, out HitInfo hitInfo)
+        public override bool Intersect(Ray ray, out HitInfo hit)
         {
             float tMin = (Min.x - ray.Origin.x) / ray.Direction.x;
             float tMax = (Max.x - ray.Origin.x) / ray.Direction.x;
@@ -46,10 +46,10 @@ namespace Game.Scripts.Console.Graphics.Shapes
             float tyMax = (Max.y - ray.Origin.y) / ray.Direction.y;
             if (tyMin > tyMax) (tyMin, tyMax) = (tyMax, tyMin);
 
-            hitInfo = new HitInfo();
+            hit = new HitInfo();
             if ((tMin > tyMax) || (tyMin > tMax))
             {
-                hitInfo.IsHit = false;
+                hit.IsHit = false;
                 return false;
             }
 
@@ -62,7 +62,7 @@ namespace Game.Scripts.Console.Graphics.Shapes
 
             if ((tMin > tzMax) || (tzMin > tMax))
             {
-                hitInfo.IsHit = false;
+                hit.IsHit = false;
                 return false;
             }
 
@@ -71,12 +71,12 @@ namespace Game.Scripts.Console.Graphics.Shapes
 
             if (tMin < 0) return false;
             // Вычисляем точку пересечения
-            hitInfo.HitPoint = ray.Origin + ray.Direction * tMin;
+            hit.HitPoint = ray.Origin + ray.Direction * tMin;
 
             // Определяем нормаль в точке пересечения
-            hitInfo.Normal = GetNormalAtPoint(hitInfo.HitPoint);
-            hitInfo.IsHit = true;
-            hitInfo.Color = new (0, 1f, 0f);
+            hit.Normal = GetNormalAtPoint(hit.HitPoint);
+            hit.IsHit = true;
+            hit.Material = Material;
             return true;
         }
         

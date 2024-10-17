@@ -19,6 +19,22 @@ namespace Game.Scripts.Console.Graphics.Math
         public bool IsHit;
         public Vector3 HitPoint;
         public Vector3 Normal;
-        public Color Color;
+        public ShapeMaterial Material;
+    }
+
+    public struct ShapeMaterial
+    {
+        public float EmissionStrength;
+        public Color EmissionColor;
+        public Color MatColor;
+        public char Texture;
+
+        public ShapeMaterial(float emissionStrength, Color emissionColor, Color matColor, char texture)
+        {
+            EmissionStrength = emissionStrength;
+            EmissionColor = emissionColor;
+            MatColor = matColor;
+            Texture = texture;
+        }
     }
 }

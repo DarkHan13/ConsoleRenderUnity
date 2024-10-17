@@ -48,12 +48,18 @@ namespace Game.Scripts.Console.Graphics
                 _screen[i] = new PixelInfo();
             }
 
-            Shapes.Add(new Sphere(new Vector3(0, 0, 5), 1f));
+            Shapes.Add(new Sphere(new Vector3(0, 4, 5), 2f));
+            Shapes[0].Material = new ShapeMaterial(1f, Color.white, Color.black, '/');
+
+            var aabbMat = new ShapeMaterial(0f, Color.black, Color.green, '.');
             for (int x = -5; x <= 5; x++)
             {
                 for (int z = -5; z <= 5; z++)
                 {
-                    Shapes.Add(new AABB(new Vector3(x, -1, z), 0.8f));
+                    var aabb = new AABB(new Vector3(x, -1, z), 0.8f);
+                    aabb.Material = aabbMat;
+                    Shapes.Add(aabb);
+                    
                 }
             }
         }
@@ -87,19 +93,7 @@ namespace Game.Scripts.Console.Graphics
         }
 
         private bool InBoundary(int x, int y) => !(x < 0 || x >= Width || y < 0 || y >= Height);
-
-        public void Random()
-        {
-            for (int y = 0; y < Height; y++)
-            {
-                for (int x = 0; x < Width; x++)
-                {
-                    _screen[x + y * Width].s = gradient[UnityEngine.Random.Range(0, GradientSize)];
-                }
-            }
-        }
-
-
+        
         public void Update()
         {
             for (int i = 0; i < Width; i++)
@@ -113,11 +107,12 @@ namespace Game.Scripts.Console.Graphics
                     rayDir = Camera.RayDir(rayDir);
                     Ray ray = new Ray(Camera.position, rayDir);
                     char pixel = ' ';
+                    int pixelIndex = i + j * Width;
                     HitInfo bestHit = new HitInfo();
 
-                    float brightness = 0;
-                    Color resultColor = Color.black;
-                    for (int k = 0; k < ReflectLimit; k++)
+                    Color rayColor = Color.white;
+                    Color incomingLight = Color.black;
+                    for (int k = 0; k <= ReflectLimit; k++)
                     {
                         bestHit.IsHit = false;
 
@@ -139,14 +134,17 @@ namespace Game.Scripts.Console.Graphics
                         {
                             // brightness += MathF.Max(0,
                             //     -Vector3.Dot(bestHit.Normal, (bestHit.HitPoint - LightPos).normalized)) * (1f / (k + 1));
+                            if (k == 0) pixel = bestHit.Material.Texture;
+                            incomingLight += bestHit.Material.EmissionStrength * bestHit.Material.EmissionColor * rayColor /* * (1f / (k + 1))*/;
+                            rayColor *= bestHit.Material.MatColor;
 
-                            resultColor += bestHit.Color * (1f / (k + 1));
-
-                            ray.Direction = Vector3.Reflect(ray.Direction, bestHit.Normal);
+                            // ray.Direction = Vector3.Reflect(ray.Direction, bestHit.Normal);
+                            ray.Direction = MyRandom.RandomHemisphereDirection(bestHit.Normal);
                             ray.Origin = bestHit.HitPoint + ray.Direction * 0.01f;
                         }
                         else
                         {
+                            if (k == 0) pixel = '#';
                             Color skyColor = new Color(0.3f, 0.6f, 1f);
                             // Color sunColor = new Color(0.95f, 0.9f, 1f);
                             // sunColor *= Mathf.Max(0, Vector3.Dot(ray.Direction, -(ray.Origin - LightPos).normalized));
@@ -154,22 +152,16 @@ namespace Game.Scripts.Console.Graphics
                             // sunColor.r = Mathf.Pow(sunColor.r, 16);
                             // sunColor.g = Mathf.Pow(sunColor.g, 16);
                             // sunColor.b = Mathf.Pow(sunColor.b, 16);
-                            if (k == 0) brightness = 0.7f;
-                            else brightness += (1f / (k + 1));
                             
-                            resultColor += (skyColor /*+ sunColor*/) * (1f / (k + 1));
+                            // incomingLight += (skyColor /*+ sunColor*/) * (1f / (k + 1));
                             break;
                         }
                     }
 
-                    brightness = Mathf.Clamp01((brightness));
-                    // resultColor *= brightness;
-                    resultColor *= brightness;
-                    resultColor *= resultColor;
-                    if (brightness > 0) pixel = '/';
                     // pixel = gradient[(int)(brightness * (GradientSize - 1))];
-                    _screen[i + j * Width].s = pixel;
-                    _screen[i + j * Width].color = resultColor;
+                    _screen[pixelIndex].s = pixel;
+                    _screen[pixelIndex].color = incomingLight;
+                    // _screen[pixelIndex].color = Color.Lerp(incomingLight, _screen[pixelIndex].color, 0.5f);
                 }
             }
 
@@ -180,7 +172,7 @@ namespace Game.Scripts.Console.Graphics
                 _screen[i].color = Color.white;
             }
 
-            var reflectionLimitMessage = $"Reflects: {ReflectLimit - 1}";
+            var reflectionLimitMessage = $"Reflects: {ReflectLimit}";
             var length = reflectionLimitMessage.Length;
             var startIndex = Width - length;
             for (int i = startIndex; i < Width; i++)

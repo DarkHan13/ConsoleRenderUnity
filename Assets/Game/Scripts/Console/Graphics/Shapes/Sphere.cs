@@ -15,7 +15,7 @@ namespace Game.Scripts.Console.Graphics.Shapes
             Radius = radius;
         }
 
-        public bool Intersect(Ray ray, out HitInfo hit)
+        public override bool Intersect(Ray ray, out HitInfo hit)
         {
             hit = new HitInfo();
         
@@ -43,7 +43,7 @@ namespace Game.Scripts.Console.Graphics.Shapes
             hit.IsHit = true;
             hit.HitPoint = ray.Origin + ray.Direction * t;
             hit.Normal = (hit.HitPoint - Center).normalized;
-            hit.Color = new Color(1, 0, 0f);
+            hit.Material = Material;
             return true;
         }
     }
