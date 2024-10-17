@@ -19,5 +19,6 @@ namespace Game.Scripts.Console.Graphics.Math
         public bool IsHit;
         public Vector3 HitPoint;
         public Vector3 Normal;
+        public Color Color;
     }
 }

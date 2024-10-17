@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using Game.Scripts.Console.Graphics.Shapes;
 using TMPro;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -42,15 +43,16 @@ namespace Game.Console
         private void Update()
         {
             HandleInput();
-            
-            Stopwatch consoleUpdateSW = Stopwatch.StartNew();
+            // _consoleGraphics.LightPos = _consoleGraphics.Camera.position;
             _consoleGraphics.Update();
-            consoleUpdateSW.Stop();
-            // Debug.Log($"_consoleGraphics.Update(); {consoleUpdateSW.ElapsedMilliseconds} Milliseconds");
-            // Stopwatch screenSW = Stopwatch.StartNew();
+
+            if (_consoleGraphics.Shapes[0] is Sphere sphere)
+            {
+                // sphere.Center = new Vector3(Mathf.Cos(Time.time), -0.1f, Mathf.Sin(Time.time)) * 5f;
+            }
+            
+            
             screenTMP.text = _consoleGraphics.GetScreen();
-            // screenSW.Stop();
-            // Debug.Log($"Get Screen {screenSW.ElapsedMilliseconds} Milliseconds");
         }
 
         private void HandleInput()
@@ -58,7 +60,7 @@ namespace Game.Console
             var mouseX = Input.GetAxis("Mouse X");
             var mouseY = Input.GetAxis("Mouse Y");
             var rotSpeed = rotationSpeed * Time.deltaTime;
-            _consoleGraphics.Camera.pitch += mouseY * rotSpeed;
+            _consoleGraphics.Camera.pitch -= mouseY * rotSpeed;
             _consoleGraphics.Camera.yaw += mouseX * rotSpeed;
             
             
@@ -81,6 +83,8 @@ namespace Game.Console
 
             if (Input.GetKeyDown(KeyCode.LeftShift)) _consoleGraphics.ReflectLimit--;
             if (Input.GetKeyDown(KeyCode.Tab)) _consoleGraphics.ReflectLimit++;
+            
+            if (Input.GetMouseButtonDown(0)) _consoleGraphics.RayDestroy();
         }
     }
 

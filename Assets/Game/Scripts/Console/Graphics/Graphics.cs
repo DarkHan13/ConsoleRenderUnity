@@ -12,21 +12,27 @@ namespace Game.Scripts.Console.Graphics
     {
         private static string gradient = " .:!/r(I1Z4H9W8$@";
         // private static string gradient = " .'`^,:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@";
-        
+
         public float charAspect;
         public float screenAspect;
         public int Width { get; private set; }
         public int Height { get; private set; }
         public int GradientSize { get; private set; }
 
-                
-        public Vector3 LightPos = new Vector3(0, 5, 0);
+
+        public Vector3 LightPos = new Vector3(3, 5, 0);
         public Camera Camera = new Camera();
         public int ReflectLimit = 1;
-        public List<Shape> Shapes = new ();
+        public List<Shape> Shapes = new();
 
-        private char[] _screen;
-        
+        private class PixelInfo
+        {
+            public char s = ' ';
+            public Color color = Color.white;
+        }
+
+        private PixelInfo[] _screen;
+
         public Graphics(float charAspect, int width, int height)
         {
             this.charAspect = charAspect;
@@ -35,23 +41,27 @@ namespace Game.Scripts.Console.Graphics
             screenAspect = (float)Width / height;
             GradientSize = gradient.Length;
 
-            _screen = new char[width * height];
-            
+            _screen = new PixelInfo[width * height];
+
+            for (int i = 0; i < width * height; i++)
+            {
+                _screen[i] = new PixelInfo();
+            }
+
             Shapes.Add(new Sphere(new Vector3(0, 0, 5), 1f));
             for (int x = -5; x <= 5; x++)
             {
                 for (int z = -5; z <= 5; z++)
                 {
-                    Shapes.Add(new AABB(new Vector3(x, 1, z), 0.8f));
+                    Shapes.Add(new AABB(new Vector3(x, -1, z), 0.8f));
                 }
             }
-
         }
 
         public void SetPixel(int x, int y, char pixel)
         {
             if (!InBoundary(x, y)) return;
-            _screen[x + y * Width] = pixel;
+            _screen[x + y * Width].s = pixel;
         }
 
         public string GetScreen()
@@ -61,8 +71,15 @@ namespace Game.Scripts.Console.Graphics
             {
                 for (int x = 0; x < Width; x++)
                 {
-                    sb.Append(_screen[x + y * Width]);
+                    var pixel = _screen[x + y * Width];
+                    if (pixel.s == ' ') sb.Append(_screen[x + y * Width].s);
+                    else
+                    {
+                        var colorHex = ColorUtility.ToHtmlStringRGB(pixel.color);
+                        sb.Append($"<color=#{colorHex}>{pixel.s}</color>");
+                    }
                 }
+
                 sb.AppendLine();
             }
 
@@ -77,7 +94,7 @@ namespace Game.Scripts.Console.Graphics
             {
                 for (int x = 0; x < Width; x++)
                 {
-                    _screen[x + y * Width] = gradient[UnityEngine.Random.Range(0, GradientSize)];
+                    _screen[x + y * Width].s = gradient[UnityEngine.Random.Range(0, GradientSize)];
                 }
             }
         }
@@ -91,16 +108,19 @@ namespace Game.Scripts.Console.Graphics
                 {
                     Vector2 uv = new Vector2((float)i / Width * 2f - 1, (float)j / Height * 2 - 1f);
                     uv.x *= screenAspect * charAspect;
+                    uv.y *= -1;
                     Vector3 rayDir = new Vector3(uv.x, uv.y, 1);
                     rayDir = Camera.RayDir(rayDir);
                     Ray ray = new Ray(Camera.position, rayDir);
                     char pixel = ' ';
                     HitInfo bestHit = new HitInfo();
+
                     float brightness = 0;
+                    Color resultColor = Color.black;
                     for (int k = 0; k < ReflectLimit; k++)
                     {
                         bestHit.IsHit = false;
-                        
+
                         float minDist = Single.PositiveInfinity;
                         foreach (var shape in Shapes)
                         {
@@ -112,30 +132,52 @@ namespace Game.Scripts.Console.Graphics
                                     minDist = dist;
                                     bestHit = hit;
                                 }
-
                             }
-
                         }
 
                         if (bestHit.IsHit)
                         {
-                            brightness += MathF.Max(0,
-                                Vector3.Dot(bestHit.Normal, (bestHit.HitPoint - LightPos).normalized)) * (k == 0 ? 1 : 0.5f);
+                            // brightness += MathF.Max(0,
+                            //     -Vector3.Dot(bestHit.Normal, (bestHit.HitPoint - LightPos).normalized)) * (1f / (k + 1));
+
+                            resultColor += bestHit.Color * (1f / (k + 1));
+
                             ray.Direction = Vector3.Reflect(ray.Direction, bestHit.Normal);
                             ray.Origin = bestHit.HitPoint + ray.Direction * 0.01f;
-                        } else break;
+                        }
+                        else
+                        {
+                            Color skyColor = new Color(0.3f, 0.6f, 1f);
+                            // Color sunColor = new Color(0.95f, 0.9f, 1f);
+                            // sunColor *= Mathf.Max(0, Vector3.Dot(ray.Direction, -(ray.Origin - LightPos).normalized));
+                            // sunColor *= sunColor;
+                            // sunColor.r = Mathf.Pow(sunColor.r, 16);
+                            // sunColor.g = Mathf.Pow(sunColor.g, 16);
+                            // sunColor.b = Mathf.Pow(sunColor.b, 16);
+                            if (k == 0) brightness = 0.7f;
+                            else brightness += (1f / (k + 1));
+                            
+                            resultColor += (skyColor /*+ sunColor*/) * (1f / (k + 1));
+                            break;
+                        }
                     }
 
                     brightness = Mathf.Clamp01((brightness));
-                    pixel = gradient[(int)(brightness * (GradientSize - 1))];
-                    _screen[i + j * Width] = pixel;
+                    // resultColor *= brightness;
+                    resultColor *= brightness;
+                    resultColor *= resultColor;
+                    if (brightness > 0) pixel = '/';
+                    // pixel = gradient[(int)(brightness * (GradientSize - 1))];
+                    _screen[i + j * Width].s = pixel;
+                    _screen[i + j * Width].color = resultColor;
                 }
             }
 
             var fpsString = (1f / Time.deltaTime).ToString("00");
             for (var i = 0; i < fpsString.Length; i++)
             {
-                _screen[i] = fpsString[i];
+                _screen[i].s = fpsString[i];
+                _screen[i].color = Color.white;
             }
 
             var reflectionLimitMessage = $"Reflects: {ReflectLimit - 1}";
@@ -143,8 +185,31 @@ namespace Game.Scripts.Console.Graphics
             var startIndex = Width - length;
             for (int i = startIndex; i < Width; i++)
             {
-                _screen[i] = reflectionLimitMessage[i - startIndex];
+                _screen[i].s = reflectionLimitMessage[i - startIndex];
+                _screen[i].color = Color.white;
             }
+        }
+
+        public void RayDestroy()
+        {
+            var ray = new Ray(Camera.position, Camera.Forward);
+            int index = -1;
+            float minDist = Single.PositiveInfinity;
+            for (var i = 0; i < Shapes.Count; i++)
+            {
+                var shape = Shapes[i];
+                if (shape.Intersect(ray, out var hit))
+                {
+                    var dist = (ray.Origin - hit.HitPoint).sqrMagnitude;
+                    if (dist < minDist)
+                    {
+                        minDist = dist;
+                        index = i;
+                    }
+                }
+            }
+
+            if (index != -1) Shapes.RemoveAt(index);
         }
     }
 }

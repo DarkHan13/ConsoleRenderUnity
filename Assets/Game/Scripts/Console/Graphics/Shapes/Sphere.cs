@@ -43,6 +43,7 @@ namespace Game.Scripts.Console.Graphics.Shapes
             hit.IsHit = true;
             hit.HitPoint = ray.Origin + ray.Direction * t;
             hit.Normal = (hit.HitPoint - Center).normalized;
+            hit.Color = new Color(1, 0, 0f);
             return true;
         }
     }
