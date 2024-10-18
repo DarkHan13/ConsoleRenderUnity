@@ -1,16 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using Game.Scripts.Console.Graphics.Math;
 using Game.Scripts.Console.Graphics.Shapes;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
+using Random = UnityEngine.Random;
 using Ray = Game.Scripts.Console.Graphics.Math.Ray;
 
 namespace Game.Scripts.Console.Graphics
 {
     public class Graphics
     {
-        private static string gradient = " .:!/r(I1Z4H9W8$@";
+        private static string gradient = " .:!/r(I1Z498$@HW";
         // private static string gradient = " .'`^,:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@";
 
         public float charAspect;
@@ -25,13 +28,40 @@ namespace Game.Scripts.Console.Graphics
         public int ReflectLimit = 1;
         public List<Shape> Shapes = new();
 
-        private class PixelInfo
+        private struct PixelInfo
         {
-            public char s = ' ';
-            public Color color = Color.white;
+            public char S;
+            public Color Color;
+
+            public PixelInfo(char s, Color color)
+            {
+                S = s;
+                Color = color;
+            }
+        }
+        
+        private struct PixelInfoGpu
+        {
+            public float Brightness;
+            public Color Color;
+
+            public PixelInfoGpu(float brightness, Color color)
+            {
+                Brightness = brightness;
+                Color = color;
+            }
+
+            public static int GetSize()
+            {
+                return sizeof(float) + sizeof(float) * 4;
+            }
         }
 
         private PixelInfo[] _screen;
+        private PixelInfoGpu[] _screenBufferData;
+        private ComputeShader _computeShader;
+        private int _kernelIndex;
+        private ComputeBuffer _screenBuffer;
 
         public Graphics(float charAspect, int width, int height)
         {
@@ -42,7 +72,7 @@ namespace Game.Scripts.Console.Graphics
             GradientSize = gradient.Length;
 
             _screen = new PixelInfo[width * height];
-
+            _screenBufferData = new PixelInfoGpu[width * height];
             for (int i = 0; i < width * height; i++)
             {
                 _screen[i] = new PixelInfo();
@@ -62,14 +92,41 @@ namespace Game.Scripts.Console.Graphics
                     
                 }
             }
+            
+            PrepareShader();
+            
         }
 
-        public void SetPixel(int x, int y, char pixel)
+        private void PrepareShader()
         {
-            if (!InBoundary(x, y)) return;
-            _screen[x + y * Width].s = pixel;
+            _computeShader = Resources.Load<ComputeShader>("RayTracing");
+            _kernelIndex = _computeShader.FindKernel("GenerateRay");
+            _screenBuffer = new ComputeBuffer(Width * Height, PixelInfoGpu.GetSize());
+            _screenBuffer.SetData(_screenBufferData);
+            _computeShader.SetBuffer(_kernelIndex, "screen", _screenBuffer);
+            _computeShader.SetFloats("screenParams", Width, Height, 1f);
+
+            int threadGroupX = Mathf.CeilToInt((Width * Height) / 32f);
+            int threadGroupY = Mathf.CeilToInt(1f);
+
+            // if (Width % 8 != 0) Width = threadGroupX * 8;
+            // if (Height % 8 != 0) Height = threadGroupY * 8;
+            Stopwatch s = Stopwatch.StartNew();
+            _computeShader.Dispatch(_kernelIndex, threadGroupX, threadGroupY, 1);
+        
+            PixelInfoGpu[] newData = new PixelInfoGpu[Width * Height];
+            _screenBuffer.GetData(newData);
+            Debug.Log(newData[5].Brightness);
+            for (int i = 0; i < Width * Height; i++)
+            {
+                _screen[i].Color = Color.white;
+                _screen[i].S = gradient[(int)((GradientSize - 1) * (Mathf.Clamp01(newData[i].Brightness)))];
+            }
+            s.Stop();
+            Debug.Log($"Done {s.ElapsedMilliseconds}");
         }
 
+        
         public string GetScreen()
         {
             StringBuilder sb = new StringBuilder();
@@ -78,11 +135,11 @@ namespace Game.Scripts.Console.Graphics
                 for (int x = 0; x < Width; x++)
                 {
                     var pixel = _screen[x + y * Width];
-                    if (pixel.s == ' ') sb.Append(_screen[x + y * Width].s);
+                    if (pixel.S == ' ') sb.Append(_screen[x + y * Width].S);
                     else
                     {
-                        var colorHex = ColorUtility.ToHtmlStringRGB(pixel.color);
-                        sb.Append($"<color=#{colorHex}>{pixel.s}</color>");
+                        var colorHex = ColorUtility.ToHtmlStringRGB(pixel.Color);
+                        sb.Append($"<color=#{colorHex}>{pixel.S}</color>");
                     }
                 }
 
@@ -96,6 +153,7 @@ namespace Game.Scripts.Console.Graphics
         
         public void Update()
         {
+            return;
             for (int i = 0; i < Width; i++)
             {
                 for (int j = 0; j < Height; j++)
@@ -159,8 +217,8 @@ namespace Game.Scripts.Console.Graphics
                     }
 
                     // pixel = gradient[(int)(brightness * (GradientSize - 1))];
-                    _screen[pixelIndex].s = pixel;
-                    _screen[pixelIndex].color = incomingLight;
+                    _screen[pixelIndex].S = pixel;
+                    _screen[pixelIndex].Color = incomingLight;
                     // _screen[pixelIndex].color = Color.Lerp(incomingLight, _screen[pixelIndex].color, 0.5f);
                 }
             }
@@ -168,8 +226,8 @@ namespace Game.Scripts.Console.Graphics
             var fpsString = (1f / Time.deltaTime).ToString("00");
             for (var i = 0; i < fpsString.Length; i++)
             {
-                _screen[i].s = fpsString[i];
-                _screen[i].color = Color.white;
+                _screen[i].S = fpsString[i];
+                _screen[i].Color = Color.white;
             }
 
             var reflectionLimitMessage = $"Reflects: {ReflectLimit}";
@@ -177,9 +235,14 @@ namespace Game.Scripts.Console.Graphics
             var startIndex = Width - length;
             for (int i = startIndex; i < Width; i++)
             {
-                _screen[i].s = reflectionLimitMessage[i - startIndex];
-                _screen[i].color = Color.white;
+                _screen[i].S = reflectionLimitMessage[i - startIndex];
+                _screen[i].Color = Color.white;
             }
+        }
+
+        public void OnDestroy()
+        {
+            _screenBuffer.Release();
         }
 
         public void RayDestroy()

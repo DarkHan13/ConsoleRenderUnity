@@ -37,7 +37,36 @@ namespace Game.Console
 
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
+        }
 
+        [ContextMenu("Try")]
+        public void Try()
+        {
+            var fdp = screenTMP.fontSize / screenTMP.font.faceInfo.pointSize;
+            var charWidth = screenTMP.font.characterTable['A'].glyph.metrics.horizontalAdvance * fdp;
+            var charHeight = screenTMP.font.faceInfo.lineHeight * fdp;
+            var charAspect = (float)charWidth / charHeight;
+            var textWidth = Mathf.FloorToInt(screenTMP.rectTransform.rect.width / charWidth);
+            var textHeight = Mathf.FloorToInt(screenTMP.rectTransform.rect.height / charHeight);
+            
+            Debug.Log(charWidth);
+            Debug.Log(charHeight);
+            Debug.Log(charAspect);
+            Debug.Log(textWidth);
+            Debug.Log(textHeight);
+        }
+
+        [ContextMenu("Calculate")]
+        public void Calculate()
+        {
+            var pointSize = screenTMP.font.faceInfo.pointSize;
+            var charWidth = screenTMP.font.characterTable['A'].glyph.metrics.horizontalAdvance / pointSize;
+            var charHeight = screenTMP.font.faceInfo.lineHeight / pointSize;
+            var screenWidth = screenTMP.rectTransform.rect.width;
+            var screenHeight = screenTMP.rectTransform.rect.height;
+            int textWidth = 160;
+            var fontSize = (textWidth / (charWidth * screenWidth));
+            Debug.Log(fontSize);
         }
 
         private void Update()
@@ -85,6 +114,11 @@ namespace Game.Console
             if (Input.GetKeyDown(KeyCode.Tab)) _consoleGraphics.ReflectLimit++;
             
             // if (Input.GetMouseButtonDown(0)) _consoleGraphics.RayDestroy();
+        }
+
+        private void OnDestroy()
+        {
+            _consoleGraphics.OnDestroy();
         }
     }
 

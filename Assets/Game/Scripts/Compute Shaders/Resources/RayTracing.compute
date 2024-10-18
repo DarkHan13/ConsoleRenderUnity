@@ -1,0 +1,28 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel GenerateRay
+
+struct ScreenBuffer
+{
+    float brightness;
+    float4 color;
+    
+};
+
+RWStructuredBuffer<ScreenBuffer> screen;
+float3 screenParams;
+
+[numthreads(32,1,1)]
+void GenerateRay (uint3 id : SV_DispatchThreadID)
+{
+    int w = screenParams.x;
+    int h = screenParams.y;
+    int x = id.x % w;
+    int y = id.x / w;
+    float2 uv = float2(x, y) / float2(w, h) * 2 - 1;
+    float aspect = w / h;
+    float charAspect = 0.55;
+    float radius = 0.5f;
+    uv.x *= aspect * charAspect;
+
+    screen[id.x].brightness = (uv.x * uv.x + uv.y * uv.y) / radius * radius;
+}
