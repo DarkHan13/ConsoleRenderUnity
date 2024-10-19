@@ -82,7 +82,15 @@ namespace Game.Scripts.Console.Graphics
             for (int i = 0; i < width * height; i++)
             {
                 _screen[i].Color = Color.white;
-                _screen[i].S = gradient[(int)((GradientSize - 1) * (Mathf.Clamp01(newData[i].Brightness)))];
+                try
+                {
+                    _screen[i].S = gradient[(int)((GradientSize - 1) * (Mathf.Clamp01(newData[i].Brightness)))];
+                }
+                catch (Exception e)
+                {
+                    Debug.Log($"{i} {(int)((GradientSize - 1) * (Mathf.Clamp01(newData[i].Brightness)))}");
+                    // throw e;
+                }
             }
         }
 

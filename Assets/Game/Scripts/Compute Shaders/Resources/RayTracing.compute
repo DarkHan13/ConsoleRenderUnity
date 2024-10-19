@@ -8,8 +8,203 @@ struct ScreenBuffer
     
 };
 
-RWStructuredBuffer<ScreenBuffer> screen;
+// settings
+static const float pi = 3.1415;
 float3 screenParams;
+
+int frame;
+int max_bounce_count;
+int num_rays_per_pixel;
+
+static const int checker_pattern = 1;
+static const int invisible_light_source = 2;
+
+struct Ray
+{
+    float3 origin;
+    float3 dir;
+};
+
+struct RayTracingMaterial
+{
+    float4 color;
+    float4 emissionColor;
+    float4 specularColor;
+    float emissionStrength;
+    float smoothness;
+    float specularProbability;
+    int flag;
+};
+
+struct Sphere
+{
+    float3 position;
+    float radius;
+    RayTracingMaterial material;
+};
+
+struct HitInfo
+{
+    bool ditHit;
+    float dst;
+    float3 hitPoint;
+    float3 normal;
+    RayTracingMaterial material;
+};
+
+// ------- buffers -------
+RWStructuredBuffer<ScreenBuffer> screen;
+
+StructuredBuffer<Sphere> spheres;
+int num_spheres;
+
+
+// ------- Random functions -------
+// PCG (permuted congruential generator). Thanks to:
+// www.pcg-random.org and www.shadertoy.com/view/XlGcRh
+uint NextRandom(inout uint state)
+{
+    state = state * 747796405 + 2891336453;
+    uint result = ((state >> ((state >> 28) + 4)) ^ state) * 277803737;
+    result = (result >> 22) ^ result;
+    return result;
+}
+
+float RandomValue(inout uint state)
+{
+    return NextRandom(state) / 4294967295.0; // [0, 1]
+}
+
+// Random value in normal distribution (with mean=0 and sd=1)
+float RandomValueNormalDistribution(inout uint state)
+{
+    // Thanks to https://stackoverflow.com/a/6178290
+    float theta = 2 * pi * RandomValue(state);
+    float rho = sqrt(-2 * log(RandomValue(state)));
+    return rho * cos(theta);
+}
+
+float RandomDirection(inout uint state)
+{
+    // Thanks to https://math.stackexchange.com/a/1585996
+    float x = RandomValueNormalDistribution(state);
+    float y = RandomValueNormalDistribution(state);
+    float z = RandomValueNormalDistribution(state);
+    return normalize(float3(x, y, z));
+}
+
+float2 RandomPointInCircle(inout uint rngState)
+{
+    float angle = RandomValue(rngState) * 2 * pi;
+    float2 pointOnCircle = float2(cos(angle), sin(angle));
+    return pointOnCircle * sqrt(RandomValue(rngState));
+}
+
+float2 mod2(float2 x, float2 y)
+{
+    return x - y * floor(x/y);
+}
+
+// todo: GetEnvironmentLight(Ray ray)
+
+// ------- Ray Intersection Functions -------
+
+HitInfo RaySphere(Ray ray, float3 center, float radius) 
+{
+    HitInfo hitInfo = (HitInfo)0;
+    float3 offsetRayOrigin = ray.origin - center;
+    float a = dot(ray.dir, ray.dir);
+    float b = 2 * dot(offsetRayOrigin, ray.dir);
+    float c = dot(offsetRayOrigin, offsetRayOrigin) - radius * radius;
+    float d = b * b - 4 * a * c;
+
+    if (d < 0) return hitInfo;
+
+    float dst = (-b - d) / (2 * a);
+
+    if (dst < 0) return hitInfo;
+
+    hitInfo.ditHit = true;
+    hitInfo.dst = dst;
+    hitInfo.hitPoint = ray.origin + ray.dir * dst;
+    hitInfo.normal = normalize(hitInfo.hitPoint - center);
+    return hitInfo;
+}
+
+// ------- Ray Tracing logic -------
+
+HitInfo CalculateRayCollision(Ray ray)
+{
+    HitInfo closestHit = (HitInfo)0;
+    closestHit.dst = -1;
+
+    for (int i = 0; i < num_spheres; i++)
+    {
+        Sphere sphere = spheres[i];
+        HitInfo hitInfo = RaySphere(ray, sphere.position, sphere.radius);
+
+        if (hitInfo.ditHit && closestHit.dst < hitInfo.dst)
+        {
+            closestHit = hitInfo;
+            closestHit.material = sphere.material;
+        }
+    }
+
+    return closestHit;
+
+}
+
+float3 Trace(Ray ray, inout uint rngState)
+{
+    float3 incomingLight = 0;
+    float3 rayColor = 1;
+
+    for (int bounceIndex = 0; bounceIndex <= max_bounce_count; bounceIndex++)
+    {
+        HitInfo hit = CalculateRayCollision(ray);
+
+        if (hit.ditHit)
+        {
+            RayTracingMaterial mat = hit.material;
+
+            if (mat.flag == checker_pattern)
+            {
+                float2 c = mod2(floor(hit.hitPoint.xz), 2.0);
+                mat.color = c.x == c.y ? mat.color : mat.emissionColor; 
+            }
+            else if (mat.flag == invisible_light_source && bounceIndex == 0)
+            {
+                ray.origin = hit.hitPoint + ray.dir * 0.001;
+                continue;
+            }
+
+            bool isSpecularBounce = mat.specularProbability >= RandomValue(rngState);
+
+            ray.origin = hit.hitPoint;
+            float3 diffuseDir = normalize(hit.normal + RandomDirection(rngState));
+            float3 specularDir = reflect(ray.dir, hit.normal);
+            ray.dir = normalize(lerp(diffuseDir, specularDir, mat.smoothness * isSpecularBounce));
+
+            // Update Light Calculations
+            float3 emittedLight = mat.emissionColor * mat.emissionStrength;
+            incomingLight += emittedLight * rayColor;
+            rayColor *= lerp(mat.color, mat.specularColor, isSpecularBounce);
+
+            // Random early exit if ray colour is nearly 0 (can't contribute much to final result)
+            float p = max(rayColor.r, max(rayColor.g, rayColor.b));
+            if (RandomValue(rngState) >= p) break;
+            rayColor *= 1.0 / p;
+        } else
+        {
+            incomingLight += 0; // todo: Return env light
+            break;
+        } 
+    }
+
+    return incomingLight;
+}
+
+
 
 [numthreads(32,1,1)]
 void GenerateRay (uint3 id : SV_DispatchThreadID)
@@ -18,12 +213,25 @@ void GenerateRay (uint3 id : SV_DispatchThreadID)
     int h = screenParams.y;
     const float charAspect = screenParams.z;
     const float aspect = (float)w / h;
-    int x = id.x % w;
-    int y = id.x / w;
-    float2 uv = float2(x, y) / float2(w, h) * 2 - 1;
+    float2 uv = float2(id.x % w, id.x / w) / float2(w, h) * 2 - 1;
     uv.x *= aspect * charAspect;
     uv.y *= -1;
 
-    screen[id.x].brightness = aspect;
-    //screen[id.x].brightness = uv.x;
+    uint rngState = uv.x + frame * 88985;
+
+    float3 camRight = float3(1, 0, 0);
+    float3 camUp = float3(0, 1, 0);
+
+    Ray ray;
+    float3 totalIncomingLight = 0;
+    num_rays_per_pixel = 1; // todo; delete it
+    for (int rayIndex = 0; rayIndex < num_rays_per_pixel; rayIndex++)
+    {
+        ray.dir = normalize(float3(uv.x, uv.y, 1));
+        totalIncomingLight += Trace(ray, rngState);
+    }
+
+    float3 pixelCol = totalIncomingLight / num_rays_per_pixel;
+    screen[id.x].brightness = (pixelCol.x + pixelCol.y + pixelCol.z) / 3;
+    screen[id.x].color = float4(pixelCol, 1);
 }
