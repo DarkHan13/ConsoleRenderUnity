@@ -13,7 +13,7 @@ namespace Game.Scripts.Console.Graphics
 {
     public class Graphics
     {
-        private static string gradient = " .:!/r(I1Z498$@HW";
+        private static string gradient = " .:!/(1rIZ98$@4HW";
         // private static string gradient = " .'`^,:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@";
 
         public float charAspect;
@@ -40,28 +40,11 @@ namespace Game.Scripts.Console.Graphics
             }
         }
         
-        private struct PixelInfoGpu
-        {
-            public float Brightness;
-            public Color Color;
 
-            public PixelInfoGpu(float brightness, Color color)
-            {
-                Brightness = brightness;
-                Color = color;
-            }
-
-            public static int GetSize()
-            {
-                return sizeof(float) + sizeof(float) * 4;
-            }
-        }
 
         private PixelInfo[] _screen;
         private PixelInfoGpu[] _screenBufferData;
-        private ComputeShader _computeShader;
-        private int _kernelIndex;
-        private ComputeBuffer _screenBuffer;
+        private GraphicShader _shaderManager;
 
         public Graphics(float charAspect, int width, int height)
         {
@@ -92,39 +75,18 @@ namespace Game.Scripts.Console.Graphics
                     
                 }
             }
+
+            _shaderManager = new GraphicShader("", width, height, charAspect);
+            var newData = _shaderManager.GetRender();
             
-            PrepareShader();
-            
-        }
-
-        private void PrepareShader()
-        {
-            _computeShader = Resources.Load<ComputeShader>("RayTracing");
-            _kernelIndex = _computeShader.FindKernel("GenerateRay");
-            _screenBuffer = new ComputeBuffer(Width * Height, PixelInfoGpu.GetSize());
-            _screenBuffer.SetData(_screenBufferData);
-            _computeShader.SetBuffer(_kernelIndex, "screen", _screenBuffer);
-            _computeShader.SetFloats("screenParams", Width, Height, 1f);
-
-            int threadGroupX = Mathf.CeilToInt((Width * Height) / 32f);
-            int threadGroupY = Mathf.CeilToInt(1f);
-
-            // if (Width % 8 != 0) Width = threadGroupX * 8;
-            // if (Height % 8 != 0) Height = threadGroupY * 8;
-            Stopwatch s = Stopwatch.StartNew();
-            _computeShader.Dispatch(_kernelIndex, threadGroupX, threadGroupY, 1);
-        
-            PixelInfoGpu[] newData = new PixelInfoGpu[Width * Height];
-            _screenBuffer.GetData(newData);
-            Debug.Log(newData[5].Brightness);
-            for (int i = 0; i < Width * Height; i++)
+            for (int i = 0; i < width * height; i++)
             {
                 _screen[i].Color = Color.white;
                 _screen[i].S = gradient[(int)((GradientSize - 1) * (Mathf.Clamp01(newData[i].Brightness)))];
             }
-            s.Stop();
-            Debug.Log($"Done {s.ElapsedMilliseconds}");
         }
+
+
 
         
         public string GetScreen()
@@ -242,7 +204,7 @@ namespace Game.Scripts.Console.Graphics
 
         public void OnDestroy()
         {
-            _screenBuffer.Release();
+            _shaderManager.Dispose();
         }
 
         public void RayDestroy()

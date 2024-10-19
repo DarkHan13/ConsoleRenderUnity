@@ -16,13 +16,14 @@ void GenerateRay (uint3 id : SV_DispatchThreadID)
 {
     int w = screenParams.x;
     int h = screenParams.y;
+    const float charAspect = screenParams.z;
+    const float aspect = (float)w / h;
     int x = id.x % w;
     int y = id.x / w;
     float2 uv = float2(x, y) / float2(w, h) * 2 - 1;
-    float aspect = w / h;
-    float charAspect = 0.55;
-    float radius = 0.5f;
     uv.x *= aspect * charAspect;
+    uv.y *= -1;
 
-    screen[id.x].brightness = (uv.x * uv.x + uv.y * uv.y) / radius * radius;
+    screen[id.x].brightness = aspect;
+    //screen[id.x].brightness = uv.x;
 }
