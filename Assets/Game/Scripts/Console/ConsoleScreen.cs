@@ -92,7 +92,6 @@ namespace Game.Console
             _consoleGraphics.Camera.pitch -= mouseY * rotSpeed;
             _consoleGraphics.Camera.yaw += mouseX * rotSpeed;
             
-            
             _consoleGraphics.Camera.pitch = Mathf.Clamp(_consoleGraphics.Camera.pitch, -89, 89);
 
             float h = 0, v = 0;

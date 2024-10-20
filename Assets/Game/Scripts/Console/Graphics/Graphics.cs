@@ -77,21 +77,7 @@ namespace Game.Scripts.Console.Graphics
             }
 
             _shaderManager = new GraphicShader("", width, height, charAspect);
-            var newData = _shaderManager.GetRender();
             
-            for (int i = 0; i < width * height; i++)
-            {
-                _screen[i].Color = Color.white;
-                try
-                {
-                    _screen[i].S = gradient[(int)((GradientSize - 1) * (Mathf.Clamp01(newData[i].Brightness)))];
-                }
-                catch (Exception e)
-                {
-                    Debug.Log($"{i} {(int)((GradientSize - 1) * (Mathf.Clamp01(newData[i].Brightness)))}");
-                    // throw e;
-                }
-            }
         }
 
 
@@ -123,6 +109,21 @@ namespace Game.Scripts.Console.Graphics
         
         public void Update()
         {
+            var newData = _shaderManager.GetRender();
+            
+            for (int i = 0; i < _screen.Length; i++)
+            {
+                _screen[i].Color = Color.white;
+                try
+                {
+                    _screen[i].S = gradient[(int)((GradientSize - 1) * (Mathf.Clamp01(newData[i].Brightness)))];
+                }
+                catch (Exception e)
+                {
+                    Debug.Log($"{i} {(int)((GradientSize - 1) * (Mathf.Clamp01(newData[i].Brightness)))}");
+                    // throw e;
+                }
+            }
             return;
             for (int i = 0; i < Width; i++)
             {

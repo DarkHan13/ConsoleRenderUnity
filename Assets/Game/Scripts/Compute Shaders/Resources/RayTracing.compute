@@ -120,7 +120,7 @@ HitInfo RaySphere(Ray ray, float3 center, float radius)
 
     if (d < 0) return hitInfo;
 
-    float dst = (-b - d) / (2 * a);
+    float dst = (-b - sqrt(d)) / (2 * a);
 
     if (dst < 0) return hitInfo;
 
@@ -224,7 +224,8 @@ void GenerateRay (uint3 id : SV_DispatchThreadID)
 
     Ray ray;
     float3 totalIncomingLight = 0;
-    num_rays_per_pixel = 1; // todo; delete it
+    num_rays_per_pixel = 100; // todo: delete it
+    max_bounce_count = 8; // todo: delete it
     for (int rayIndex = 0; rayIndex < num_rays_per_pixel; rayIndex++)
     {
         ray.dir = normalize(float3(uv.x, uv.y, 1));
@@ -232,6 +233,9 @@ void GenerateRay (uint3 id : SV_DispatchThreadID)
     }
 
     float3 pixelCol = totalIncomingLight / num_rays_per_pixel;
-    screen[id.x].brightness = (pixelCol.x + pixelCol.y + pixelCol.z) / 3;
+    float b = (pixelCol.x + pixelCol.y + pixelCol.z) / 3;
+    float prevB = screen[id.x].brightness;
+    float weight = 1.0 / (frame + 1);
+    screen[id.x].brightness = b;
     screen[id.x].color = float4(pixelCol, 1);
 }

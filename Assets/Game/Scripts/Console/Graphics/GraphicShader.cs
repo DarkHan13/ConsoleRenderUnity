@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using Game.Console.Helpers;
 using Game.Console.Objects;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -10,63 +11,84 @@ namespace Game.Scripts.Console.Graphics
     {
         private ComputeShader _shader;
         private int _kernelIndex;
-        private ComputeBuffer _screenBuffer;
-        private PixelInfoGpu[] _resultScreenBufferData;
         private int _threadGroupX,  _threadGroupY;
         private bool _disposed = false;
+        
+        // Data for Buffers
+        private PixelInfoGpu[] _screenBufferData;
+        private SphereObject[] _spheres;
+        
+        // Buffers
+        private ComputeBuffer _screenBuffer;
+        ComputeBuffer _sphereBuffer = null;
+
         
         public GraphicShader(string path, int width, int height, float charAspect)
         {
             if (path == "") path = "RayTracing";
             var wh = width * height;
-            _resultScreenBufferData = new PixelInfoGpu[wh];
-            for (var i = 0; i < _resultScreenBufferData.Length; i++)
+            _screenBufferData = new PixelInfoGpu[wh];
+            for (var i = 0; i < _screenBufferData.Length; i++)
             {
-                _resultScreenBufferData[i] = new PixelInfoGpu();
+                _screenBufferData[i] = new PixelInfoGpu();
             }
             
             _shader = Resources.Load<ComputeShader>(path);
             _kernelIndex = _shader.FindKernel("GenerateRay");
-            _screenBuffer = new ComputeBuffer(wh, PixelInfoGpu.GetSize());
-            _screenBuffer.SetData(new PixelInfoGpu[wh]);
+
+            
+            ComputeShaderHelper.CreateStructureBuffer(ref _screenBuffer, _screenBufferData);
             _shader.SetFloats("screenParams", width, height, charAspect);
 
             _threadGroupX = Mathf.CeilToInt((width * height) / 32f);
             _threadGroupY = Mathf.CeilToInt(1f);
-
+            
+            RayTracingMaterial material = new RayTracingMaterial();
+            material.SetDefaultValues();
+            
+            SphereObject sphereObject = new SphereObject()
+            {
+                material = material,
+                position = new Vector3(-7, 8, 0),
+                radius = 3f,
+            };
+            var sphereObject2 = sphereObject;
+            sphereObject2.material.emissionStrength = 0;
+            // sphereObject2.material.smoothness = 1;
+            sphereObject2.position = new Vector3(-3, 0, 5);
+            sphereObject2.radius = 1f;
+            var sphereObject3 = sphereObject2;
+            sphereObject3.position = new Vector3(0, 0, 5);
+            sphereObject3.radius = 2f;
+            var sphereObject4 = sphereObject2;
+            sphereObject4.position = new Vector3(0, -23, 5);
+            sphereObject4.radius = 20f;
+            _spheres = new [] { sphereObject, sphereObject2, sphereObject3, sphereObject4 };
             
         }
 
         public PixelInfoGpu[] GetRender()
         {
-            // Todo: Create ShaderHelper
             
+            // ------- Buffers -------
             // Screen Buffer
-            _screenBuffer.SetData(_resultScreenBufferData);
+            _screenBuffer.SetData(_screenBufferData);
             _shader.SetBuffer(_kernelIndex, "screen", _screenBuffer);
             
-            // Object Buffer todo: Release all buffers
-            RayTracingMaterial material = new RayTracingMaterial();
-            material.SetDefaultValues();
-            SphereObject sphereObject = new SphereObject()
-            {
-                material = material,
-                position = new Vector3(0, 0, 5),
-                radius = 1f,
-            };
-            ComputeBuffer sphereBuffer =
-                new ComputeBuffer(1, System.Runtime.InteropServices.Marshal.SizeOf(typeof(SphereObject)));
-            sphereBuffer.SetData(new[] {sphereObject});
-            _shader.SetBuffer(_kernelIndex, "spheres", sphereBuffer);
-            _shader.SetInt("num_spheres", 1);
+            // Object Buffer 
+            // _spheres[0].position.x = Mathf.Cos(Time.time) * 5f;
+            _spheres[0].radius += Time.deltaTime / 3f;
+            // _spheres[1].position = new Vector3(Mathf.Cos(Time.time) * 3f, Mathf.Sin(Time.time) * 3f, 4);
+            ComputeShaderHelper.CreateStructureBuffer(ref _sphereBuffer, _spheres);
+            _shader.SetBuffer(_kernelIndex, "spheres", _sphereBuffer);
+            _shader.SetInt("num_spheres", _spheres.Length);
             
-            // dynamic params
+            // ------- Dynamic Params -------
             _shader.SetInt("frame", Time.renderedFrameCount);
             
             _shader.Dispatch(_kernelIndex, _threadGroupX, _threadGroupY, 1);
-            _screenBuffer.GetData(_resultScreenBufferData);
-            Debug.Log(_resultScreenBufferData.Length);
-            return _resultScreenBufferData;
+            _screenBuffer.GetData(_screenBufferData);
+            return _screenBufferData;
         }
 
         public void Dispose()
@@ -79,7 +101,7 @@ namespace Game.Scripts.Console.Graphics
             if (!_disposed) {
                 if (disposing) {
                     // Dispose managed resources (buffers)
-                    _screenBuffer?.Release();
+                    ComputeShaderHelper.Release(_screenBuffer, _sphereBuffer);
                 }
                 _disposed = true;
             }
